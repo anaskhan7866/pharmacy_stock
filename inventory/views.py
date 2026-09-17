@@ -1,15 +1,24 @@
-from rest_framework import viewsets, status
+from django.shortcuts import render
+from rest_framework import viewsets, status, filters
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from django.utils import timezone
 from .models import Medicine, Batch
 from .serializers import MedicineSerializer, BatchSerializer
+from django.contrib.auth.forms import UserCreationForm
+from django.contrib.auth import login
+from django.contrib.auth.decorators import login_required
+from django.shortcuts import render, redirect
 
 class MedicineViewSet(viewsets.ModelViewSet):
     queryset = Medicine.objects.all()
     serializer_class = MedicineSerializer
+    
+    # Enables Search and Sorting API requirements
+    filter_backends = [filters.SearchFilter, filters.OrderingFilter]
+    search_fields = ['name', 'description']
+    ordering_fields = ['name']
 
-    # Custom API endpoint for FEFO dispensing: /api/medicines/<id>/dispense/
     @action(detail=True, methods=['post'])
     def dispense(self, request, pk=None):
         medicine = self.get_object()
@@ -54,3 +63,30 @@ class MedicineViewSet(viewsets.ModelViewSet):
 class BatchViewSet(viewsets.ModelViewSet):
     queryset = Batch.objects.all()
     serializer_class = BatchSerializer
+    
+    # Enables Search and Sorting for batches
+    filter_backends = [filters.SearchFilter, filters.OrderingFilter]
+    search_fields = ['batch_id', 'medicine__name']
+    ordering_fields = ['expiry_date', 'quantity']
+
+
+
+def landing_page(request):
+    return render(request, 'inventory/landing.html')
+
+
+def register(request):
+    if request.method == 'POST':
+        form = UserCreationForm(request.POST)
+        if form.is_valid():
+            user = form.save()
+            login(request, user)
+            return redirect('dashboard')
+    else:
+        form = UserCreationForm()
+    return render(request, 'inventory/register.html', {'form': form})
+
+@login_required(login_url='/login/')
+def dashboard(request):
+    # The actual usable UI over the APIs
+    return render(request, 'inventory/dashboard.html')
